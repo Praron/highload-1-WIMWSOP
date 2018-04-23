@@ -36,7 +36,8 @@ def parse_config(config_path):
 
 def make_error_response(code):
     error_codes = {405: 'Method Not Allowed',
-                   404: 'Not Found'}
+                   404: 'Not Found',
+                   403: 'Forbidden'}
     if code not in error_codes.keys():
         raise ValueError('Unallowed error code: {}'.format(code))
     response = 'HTTP/1.1 {} {}\n'.format(code, error_codes[code])
@@ -47,7 +48,7 @@ def make_error_response(code):
 
 
 def get_full_path(path, document_root):
-    path = '/index.html' if path == '/' else path
+    path = path[:-1] + '/index.html' if path[-1] == '/' else path
     return document_root + path
 
 
@@ -75,8 +76,7 @@ def make_head_response(path):
         return make_error_response(404)
     response = 'HTTP/1.1 200 OK\r\n'
     response += make_common_response_headers()
-    response += 'Content-Length: {}\r\n'.format(len(body))
-    response += '\r\n\r\n'
+    response += '\r\nContent-Length: {}\r\n\r\n'.format(len(body))
     return response
 
 
@@ -89,22 +89,26 @@ def make_get_response(path):
     response = 'HTTP/1.1 200 OK\r\n'
     response += make_common_response_headers()
     response += get_content_type(path)
-    response += 'Content-Length: {}\r\n'.format(len(body))
+    response += '\r\nContent-Length: {}\r\n'.format(len(body))
     response += '\r\n'
     response += body
     return response
 
 
 def make_response(request, document_root):
-    headers_part, body = request.split('\r\n\r\n', 1)
+    # headers_part, body = request.split('\r\n\r\n', 1)
+    headers_part = request.split('\r\n\r\n')[0]
     headers_lines = headers_part.split('\r\n')
     method, path, version = headers_lines[0].split()
     path = unquote(path).split('?')[0]
     full_path = get_full_path(path, document_root)
     headers = {line.split(': ')[0]: line.split(': ')[1] for line in headers_lines[1:]}
 
-    if '..' in path:
+    if '/..' in path:
         return make_error_response(404)
+
+    if ('index.html' in full_path) and not os.path.exists(full_path):
+        return make_error_response(403)
 
     if method == 'HEAD':
         return make_head_response(full_path)
@@ -122,7 +126,7 @@ def handle_requests(sock, document_root):
         data = connection.recv(2048)
         if len(data.strip()) == 0:
             connection.close()
-            return
+            continue
 
         connection.sendall(make_response(data, document_root))
         connection.close()
