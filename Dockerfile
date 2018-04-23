@@ -1,4 +1,4 @@
-FROM ubuntu:17.10
+FROM debian:testing
 
 WORKDIR /app
 
@@ -7,7 +7,7 @@ RUN apt-get update &&\
         apt-get install -y jython
 
 ADD main.py main.py
-ADD httpd.conf httpd.conf
+ADD httpd.conf /etc/httpd.conf
 ADD index.html /var/www/html
 
 EXPOSE 80
